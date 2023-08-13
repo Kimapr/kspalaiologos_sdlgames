@@ -8,11 +8,35 @@
 #include "main.h"
 
 static int won(void);
+static void call_around(int,  void (*)(int, int, int), int);
+static void add_inner(int i, int j, int n);
+static void add_outer(int i, int j, int n);
 
 unsigned minefield_x = 9, minefield_y = 9, minefield_mines = 10;
 char * minefield = NULL;
 char * minefield_visible = NULL;
 char * minefield_unlose_buf = NULL;
+
+static void call_around(int i, void (*fn)(int, int, int), int n) {
+    int x = i % minefield_x;
+    int y = i / minefield_x;
+    for (int dx = -1; dx <= 1; dx++)
+    for (int dy = -1; dy <= 1; dy++) {
+        int nx = x + dx;
+        int ny = y + dy;
+        int j = nx + ny * minefield_x;
+        if (nx >= 0 && ny >= 0 && nx < minefield_x && ny < minefield_y && i != j)
+            fn(i, j, n);
+    }
+}
+
+static void add_inner(int i, int j, int _n) {
+    if (minefield[j] == 9) minefield[i] += 1;
+}
+
+static void add_outer(int i, int j, int n) {
+    if (minefield[j] < 9) minefield[j] += n;
+}
 
 void regenerate_minefield(unsigned x, unsigned y, unsigned mines) {
     srand(time(NULL));
@@ -33,18 +57,7 @@ void regenerate_minefield(unsigned x, unsigned y, unsigned mines) {
             continue;
         }
         minefield[mine_y * x + mine_x] = 9;
-        if (mine_y > 0 && mine_x > 0 && minefield[(mine_y - 1) * x + (mine_x - 1)] < 9)
-            minefield[(mine_y - 1) * x + (mine_x - 1)]++;
-        if (mine_y > 0 && minefield[(mine_y - 1) * x + mine_x] < 9) minefield[(mine_y - 1) * x + mine_x]++;
-        if (mine_y > 0 && mine_x < x - 1 && minefield[(mine_y - 1) * x + (mine_x + 1)] < 9)
-            minefield[(mine_y - 1) * x + (mine_x + 1)]++;
-        if (mine_x > 0 && minefield[mine_y * x + (mine_x - 1)] < 9) minefield[mine_y * x + (mine_x - 1)]++;
-        if (mine_x < x - 1 && minefield[mine_y * x + (mine_x + 1)] < 9) minefield[mine_y * x + (mine_x + 1)]++;
-        if (mine_y < y - 1 && mine_x > 0 && minefield[(mine_y + 1) * x + (mine_x - 1)] < 9)
-            minefield[(mine_y + 1) * x + (mine_x - 1)]++;
-        if (mine_y < y - 1 && minefield[(mine_y + 1) * x + mine_x] < 9) minefield[(mine_y + 1) * x + mine_x]++;
-        if (mine_y < y - 1 && mine_x < x - 1 && minefield[(mine_y + 1) * x + (mine_x + 1)] < 9)
-            minefield[(mine_y + 1) * x + (mine_x + 1)]++;
+        call_around(mine_y * x + mine_x, add_outer, 1);
     }
 
     for (unsigned i = 0; i < x * y; i++) {
@@ -165,9 +178,12 @@ int make_move(int x, int y) {
             if (not_mines > 0) {
                 int i = minefield_unlose_buf[rand() % not_mines];
                 int j = x + y * minefield_x;
-                int c = minefield[j];
-                minefield[j] = minefield[i];
-                minefield[i] = c;
+                minefield[j] = 0;
+                minefield[i] = 9;
+                call_around(j, add_outer, -1);
+                call_around(i, add_outer, 1);
+                call_around(j, add_inner, 0);
+                printf("res %i\n",minefield[j]);
                 return make_move(x, y);
             }
         }
