@@ -8,9 +8,6 @@
 #include "main.h"
 
 static int won(void);
-static void call_around(int,  void (*)(int, int, int), int);
-static void add_inner(int i, int j, int n);
-static void add_outer(int i, int j, int n);
 
 unsigned minefield_x = 9, minefield_y = 9, minefield_mines = 10;
 char * minefield = NULL;
@@ -68,62 +65,13 @@ void regenerate_minefield(unsigned x, unsigned y, unsigned mines) {
     first_move = 1;
 }
 
-static void flood_uncover(int x, int y) {
-    // We are guaranteed that (x,y) is not a mine.
-    // Recurse to every tile around (x,y) as long as it's
-    //   1) minefield_visible == VIS_COVERED 2) minefield == 0
+static void flood_uncover(int _i, int j, int _n) {
+    if (minefield[j] == 9) return;
+    if (minefield_visible[j] != VIS_COVERED) return;
 
-    minefield_visible[y * minefield_x + x] = VIS_UNCOVERED;
-
-    if (minefield[y * minefield_x + x] == 0) {
-        if (x > 0 && y > 0 && minefield_visible[(y - 1) * minefield_x + (x - 1)] == VIS_COVERED &&
-            minefield[(y - 1) * minefield_x + (x - 1)] <= 8) {
-            minefield_visible[(y - 1) * minefield_x + (x - 1)] = VIS_UNCOVERED;
-            flood_uncover(x - 1, y - 1);
-        }
-
-        if (y > 0 && minefield_visible[(y - 1) * minefield_x + x] == VIS_COVERED &&
-            minefield[(y - 1) * minefield_x + x] <= 8) {
-            minefield_visible[(y - 1) * minefield_x + x] = VIS_UNCOVERED;
-            flood_uncover(x, y - 1);
-        }
-
-        if (x < minefield_x - 1 && y > 0 && minefield_visible[(y - 1) * minefield_x + (x + 1)] == VIS_COVERED &&
-            minefield[(y - 1) * minefield_x + (x + 1)] <= 8) {
-            minefield_visible[(y - 1) * minefield_x + (x + 1)] = VIS_UNCOVERED;
-            flood_uncover(x + 1, y - 1);
-        }
-
-        if (x > 0 && minefield_visible[y * minefield_x + (x - 1)] == VIS_COVERED &&
-            minefield[y * minefield_x + (x - 1)] <= 8) {
-            minefield_visible[y * minefield_x + (x - 1)] = VIS_UNCOVERED;
-            flood_uncover(x - 1, y);
-        }
-
-        if (x < minefield_x - 1 && y < minefield_y - 1 &&
-            minefield_visible[(y + 1) * minefield_x + (x + 1)] == VIS_COVERED &&
-            minefield[(y + 1) * minefield_x + (x + 1)] <= 8) {
-            minefield_visible[(y + 1) * minefield_x + (x + 1)] = VIS_UNCOVERED;
-            flood_uncover(x + 1, y + 1);
-        }
-
-        if (x > 0 && y < minefield_y - 1 && minefield_visible[(y + 1) * minefield_x + (x - 1)] == VIS_COVERED &&
-            minefield[(y + 1) * minefield_x + (x - 1)] <= 8) {
-            minefield_visible[(y + 1) * minefield_x + (x - 1)] = VIS_UNCOVERED;
-            flood_uncover(x - 1, y + 1);
-        }
-
-        if (y < minefield_y - 1 && minefield_visible[(y + 1) * minefield_x + x] == VIS_COVERED &&
-            minefield[(y + 1) * minefield_x + x] <= 8) {
-            minefield_visible[(y + 1) * minefield_x + x] = VIS_UNCOVERED;
-            flood_uncover(x, y + 1);
-        }
-
-        if (x < minefield_x - 1 && minefield_visible[y * minefield_x + (x + 1)] == VIS_COVERED &&
-            minefield[y * minefield_x + (x + 1)] <= 8) {
-            minefield_visible[y * minefield_x + (x + 1)] = VIS_UNCOVERED;
-            flood_uncover(x + 1, y);
-        }
+    minefield_visible[j] = VIS_UNCOVERED;
+    if (minefield[j] == 0) {
+        call_around(j, flood_uncover, 0);
     }
 }
 
@@ -163,38 +111,38 @@ static int won(void) {
 char first_move = 1;
 
 int make_move(int x, int y) {
-    int vis = minefield_visible[x + y * minefield_x];
-    int min = minefield[x + y * minefield_x];
+    int i = x + y * minefield_x;
+    int vis = minefield_visible[i];
+    int min = minefield[i];
     if (vis != VIS_COVERED) return 0;
     if (min == 9) {
         if (first_move) {
             int not_mines = 0;
-            for (int i = 0; i < minefield_x * minefield_y; i++) {
-                if(minefield[i] != 9) {
-                    minefield_unlose_buf[not_mines] = i;
+            for (int j = 0; j < minefield_x * minefield_y; j++) {
+                if(minefield[j] != 9) {
+                    minefield_unlose_buf[not_mines] = j;
                     not_mines++;
                 }
             }
             if (not_mines > 0) {
-                int i = minefield_unlose_buf[rand() % not_mines];
-                int j = x + y * minefield_x;
-                minefield[j] = 0;
-                minefield[i] = 9;
-                call_around(j, add_outer, -1);
-                call_around(i, add_outer, 1);
-                call_around(j, add_inner, 0);
+                int j = minefield_unlose_buf[rand() % not_mines];
+                minefield[i] = 0;
+                minefield[j] = 9;
+                call_around(i, add_outer, -1);
+                call_around(j, add_outer, 1);
+                call_around(i, add_inner, 0);
                 return make_move(x, y);
             }
         }
-        for (int i = 0; i < minefield_x * minefield_y; i++) {
-            if (minefield[i] == 9) minefield_visible[i] = VIS_OTHER_MINE;
-            if (minefield_visible[i] == VIS_FLAG && minefield[i] != 9) minefield_visible[i] = VIS_WRONG_FLAG;
+        for (int j = 0; j < minefield_x * minefield_y; j++) {
+            if (minefield[j] == 9) minefield_visible[j] = VIS_OTHER_MINE;
+            if (minefield_visible[j] == VIS_FLAG && minefield[j] != 9) minefield_visible[j] = VIS_WRONG_FLAG;
         }
-        minefield_visible[x + y * minefield_x] = VIS_LOSING_MINE;
+        minefield_visible[i] = VIS_LOSING_MINE;
         return -1;
     } else {
         first_move = 0;
-        flood_uncover(x, y);
+        flood_uncover(0, i, 0);
         return won();
     }
 }
