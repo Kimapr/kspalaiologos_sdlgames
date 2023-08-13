@@ -183,7 +183,6 @@ int make_move(int x, int y) {
                 call_around(j, add_outer, -1);
                 call_around(i, add_outer, 1);
                 call_around(j, add_inner, 0);
-                printf("res %i\n",minefield[j]);
                 return make_move(x, y);
             }
         }
